@@ -15,22 +15,21 @@ HardwareSerial Serial(PA10, PA9);
 // static const uint8_t PIN_RST  = PB7;
 // static const uint8_t PIN_DIO1 = PA7;
 // SPI1
-#define LORA_SCK  PB3
-#define LORA_MISO PB4
-#define LORA_MOSI PB5
+static const uint8_t LORA_SCK  = PB3;
+static const uint8_t LORA_MISO = PB4;
+static const uint8_t LORA_MOSI = PB5;
 
 // LoRa Actuator Pin Definitions
-// #define LORA_NSS  PB8
-// #define LORA_BUSY PA8
-// #define LORA_DIO1 PA7 
-// #define LORA_RST  PB7
+static const uint8_t LORA_NSS = PB8;
+static const uint8_t LORA_BUSY = PA8;
+static const uint8_t LORA_DIO1 = PA7;
+static const uint8_t LORA_RST = PB7;
 
 // LoRa Controller Pin Definitions
-#define LORA_NSS  PB0
-#define LORA_BUSY PB1
-#define LORA_DIO1 PA0   // Shared with Wake Pin
-#define LORA_RST  PB7
-
+// static const uint8_t LORA_NSS  = PB0;
+// static const uint8_t LORA_BUSY = PB1;
+// static const uint8_t LORA_DIO1 = PA0;   // Shared with Wake Pin
+// static const uint8_t LORA_RST  = PB7;
 
 // Create LoRa instance using RadioLib (CS, IRQ/DIO1, RST, BUSY)
 SX1262 radio = new Module(LORA_NSS, LORA_DIO1, LORA_RST, LORA_BUSY);
@@ -40,6 +39,7 @@ static const uint8_t ACT_LED = PC14;
 // ------------------------------------------------------------
 // Receive flag
 // ------------------------------------------------------------
+static bool fired = false;
 volatile bool receivedFlag = false;
 
 void setFlag(void)
@@ -145,6 +145,8 @@ void loop()
     CmdFrame* frame =
         (CmdFrame*)rxBuf;
 
+    Serial.printf("[NetID: 0x%02X] [TTL: %d] [Type: 0x%02X]\n", frame->header.netId, frame->header.ttl, frame->payload.type);
+
     if(frame->header.netId != PROTO_NET_ID)
     {
         Serial.println("Bad NetID");
@@ -185,13 +187,63 @@ void loop()
 
     if(frame->payload.command == CMD_TRIGGER)
     {
-        digitalWrite(ACT_LED, HIGH);
+        uint8_t txBuf[16];
+        size_t txLen;
 
-        Serial.println("TRIGGER RECEIVED");
+        buildAckPacket(
+            frame->payload.channel,
+            frame->payload.counter,
+            fired ?
+            RES_ACCEPTED :
+            RES_ALREADY_FIRED,
+            txBuf,
+            &txLen);
+
+        if(!fired)
+        {
+            Serial.println("TRIGGER RECEIVED");
+            fired = true;
+
+            digitalWrite(
+                ACT_LED,
+                HIGH);
+        }
+        else
+        {
+            Serial.println("TRIGGER RECEIVED, BUT ALREADY FIRED");
+        }
+
+        state = radio.transmit(txBuf, txLen);
+        if(state != RADIOLIB_ERR_NONE)
+        {
+            Serial.print("TX error: ");
+            Serial.println(state);
+        }
+
+        radio.finishTransmit();
+
+        radio.startReceive();
     }
     else if(frame->payload.command == CMD_STATUS)
     {
+        uint8_t txBuf[16];
+        size_t txLen;
+
         Serial.println("STATUS REQUEST RECEIVED");
+        buildStatusPacket(
+            frame->payload.channel,
+            frame->payload.counter,
+            fired ?
+                STATE_FIRED :
+                STATE_READY,
+            100,
+            txBuf,
+            &txLen);
+
+        radio.transmit(txBuf, txLen);
+        radio.finishTransmit();
+
+        radio.startReceive();
     }
 
     Serial.print("RSSI: ");

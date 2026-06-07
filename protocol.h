@@ -84,22 +84,23 @@ uint16_t protocolCrc16(
     const uint8_t* data,
     size_t len);
 
-bool buildTriggerPacket(
+/********************************************
+ * Actuator APIs
+ *********************************************/
+bool buildAckPacket(
     uint8_t channel,
     uint8_t counter,
+    uint8_t result,
     uint8_t* buffer,
     size_t* len);
 
-bool buildStatusRequestPacket(
+bool buildStatusPacket(
     uint8_t channel,
     uint8_t counter,
+    uint8_t state,
+    uint8_t battery,
     uint8_t* buffer,
     size_t* len);
-
-bool decodeAckPacket(
-    const uint8_t* buffer,
-    size_t len,
-    AckPayload* ack);
 
 bool decodeStatusPacket(
     const uint8_t* buffer,
