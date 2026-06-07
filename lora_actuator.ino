@@ -34,7 +34,12 @@ static const uint8_t LORA_RST = PB7;
 // Create LoRa instance using RadioLib (CS, IRQ/DIO1, RST, BUSY)
 SX1262 radio = new Module(LORA_NSS, LORA_DIO1, LORA_RST, LORA_BUSY);
 
-// Change as needed
+// ------------------------------------------------------------
+// Actuator Channels
+// ------------------------------------------------------------
+static const uint8_t ACC_CHANNEL = 1;
+
+
 static const uint8_t ACT_LED = PC14;
 // ------------------------------------------------------------
 // Receive flag
@@ -171,6 +176,14 @@ void loop()
     if(crc != frame->payload.crc16)
     {
         Serial.println("CRC mismatch");
+
+        radio.startReceive();
+        return;
+    }
+    
+    if(frame->payload.channel != ACC_CHANNEL)
+    {
+        Serial.println("Not my channel");
 
         radio.startReceive();
         return;
